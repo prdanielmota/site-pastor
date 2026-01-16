@@ -1,4 +1,4 @@
-import { Facebook, Instagram, Youtube, Mail } from "lucide-react"
+import { Instagram, Youtube, Mail } from "lucide-react"
 import Link from "next/link"
 
 export function Footer() {
@@ -26,15 +26,11 @@ export function Footer() {
           <div className="space-y-4">
             <h4 className="text-base md:text-lg font-black uppercase tracking-wider border-b-2 border-black inline-block pb-1">Siga-nos</h4>
             <div className="flex space-x-4">
-              <Link href="#" className="p-2 border-2 border-black shadow-[4px_4px_0_0_black] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_black] hover:bg-accent transition-all">
+              <Link href="https://www.instagram.com/prdanielmota/" target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-black shadow-[4px_4px_0_0_black] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_black] hover:bg-accent transition-all">
                 <Instagram className="h-6 w-6" />
                 <span className="sr-only">Instagram</span>
               </Link>
-              <Link href="#" className="p-2 border-2 border-black shadow-[4px_4px_0_0_black] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_black] hover:bg-accent transition-all">
-                <Facebook className="h-6 w-6" />
-                <span className="sr-only">Facebook</span>
-              </Link>
-              <Link href="#" className="p-2 border-2 border-black shadow-[4px_4px_0_0_black] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_black] hover:bg-accent transition-all">
+              <Link href="https://www.youtube.com/@Comunidade_Ser" target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-black shadow-[4px_4px_0_0_black] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_black] hover:bg-accent transition-all">
                 <Youtube className="h-6 w-6" />
                 <span className="sr-only">YouTube</span>
               </Link>
