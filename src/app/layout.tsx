@@ -15,7 +15,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Portal Advento News",
+  title: "Daniel Mota | Portal Advento News",
   description: "Notícias dinâmicas sobre a Igreja Adventista e o mundo religioso.",
 };
 

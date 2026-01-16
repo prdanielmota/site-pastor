@@ -5,6 +5,7 @@ import { Calendar, ArrowRight, Flame, Newspaper, Globe, Cross } from "lucide-rea
 import { fetchNews, NewsItem } from "@/lib/rss";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { NewsImage } from "@/components/ui/news-image";
 
 // Utility to format date
 const formatDate = (dateStr?: string) => {
@@ -14,17 +15,6 @@ const formatDate = (dateStr?: string) => {
   } catch (e) {
     return dateStr;
   }
-};
-
-// Utility to get image placeholder
-const getImage = (item: NewsItem) => {
-  return item.imageUrl ? (
-    <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-  ) : (
-    <div className="w-full h-full bg-muted/50 flex items-center justify-center">
-      <Globe className="w-8 h-8 text-muted-foreground/30" />
-    </div>
-  );
 };
 
 export default async function Home() {
@@ -43,21 +33,21 @@ export default async function Home() {
     <div className="flex flex-col min-h-screen">
       {/* Hero Section - Featured News */}
       {featuredNews && (
-        <section className="w-full py-12 md:py-20 bg-muted/30">
+        <section className="w-full py-8 md:py-20 bg-muted/30">
           <div className="container px-4 md:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-              <div className="space-y-6">
+              <div className="space-y-6 order-2 lg:order-1">
                 <div className="inline-block rounded-full bg-primary/10 px-4 py-1.5 text-sm text-primary font-semibold">
                   Destaque Global
                 </div>
-                <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl leading-tight line-clamp-3">
+                <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl leading-tight line-clamp-3">
                   {featuredNews.title}
                 </h1>
-                <p className="max-w-[600px] text-muted-foreground text-lg md:text-xl leading-relaxed line-clamp-3">
+                <p className="max-w-[600px] text-muted-foreground text-base md:text-lg lg:text-xl leading-relaxed line-clamp-3">
                   {featuredNews.contentSnippet || "Leia a matéria completa clicando no botão abaixo."}
                 </p>
                 <div className="flex flex-col gap-3 min-[400px]:flex-row pt-4">
-                  <Button asChild size="lg" className="font-semibold">
+                  <Button asChild size="lg" className="font-semibold w-full sm:w-auto">
                     <a href={featuredNews.link} target="_blank" rel="noopener noreferrer">
                       Ler Matéria Completa
                     </a>
@@ -65,21 +55,19 @@ export default async function Home() {
                 </div>
               </div>
               {/* Featured Image */}
-              <div className="relative aspect-video w-full rounded-2xl overflow-hidden shadow-2xl border bg-muted flex items-center justify-center group">
-                 {featuredNews.imageUrl ? (
-                    <img src={featuredNews.imageUrl} alt={featuredNews.title} className="w-full h-full object-cover" />
-                 ) : (
-                    <div className="flex items-center justify-center w-full h-full bg-muted">
-                        <Globe className="w-16 h-16 text-muted-foreground/50" />
-                    </div>
-                 )}
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden shadow-2xl border bg-muted flex items-center justify-center group order-1 lg:order-2">
+                 <NewsImage 
+                    src={featuredNews.imageUrl} 
+                    alt={featuredNews.title} 
+                    className="w-full h-full object-cover"
+                 />
               </div>
             </div>
           </div>
         </section>
       )}
 
-      <div className="container px-4 md:px-6 py-16 grid grid-cols-1 lg:grid-cols-12 gap-12">
+      <div className="container px-4 md:px-6 py-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
         {/* Main Content Column */}
         <div className="lg:col-span-8 space-y-16">
           
@@ -101,7 +89,11 @@ export default async function Home() {
               {remainingIasd.map((item, i) => (
                 <Card key={i} className="group flex flex-col md:flex-row overflow-hidden border-none shadow-none hover:shadow-lg transition-all duration-300 bg-card/50 hover:bg-card">
                   <div className="w-full md:w-64 aspect-video md:aspect-auto bg-muted/50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
-                    {getImage(item)}
+                    <NewsImage 
+                      src={item.imageUrl} 
+                      alt={item.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
                   </div>
                   <div className="flex flex-col flex-1 p-4 md:py-2 md:px-6">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-3">
@@ -145,7 +137,11 @@ export default async function Home() {
               {remainingWorld.map((item, i) => (
                 <Card key={i} className="group hover:shadow-lg transition-all duration-300 border-none bg-card/50 hover:bg-card">
                   <div className="aspect-[1.6/1] bg-muted/50 rounded-t-xl flex items-center justify-center overflow-hidden">
-                     {getImage(item)}
+                     <NewsImage 
+                        src={item.imageUrl} 
+                        alt={item.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                     />
                   </div>
                   <CardContent className="p-5">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-3">
@@ -189,33 +185,15 @@ export default async function Home() {
             </CardContent>
           </Card>
 
-          {/* Newsletter Widget */}
-          <div className="bg-primary/5 rounded-2xl p-6 border border-primary/10">
-            <h3 className="text-xl font-bold mb-2">Boletim Diário</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Receba as principais notícias do mundo religioso diretamente no seu e-mail.
-            </p>
-            <form className="space-y-3">
-              <input 
-                type="email" 
-                placeholder="Seu e-mail principal" 
-                className="w-full px-4 py-2.5 rounded-lg bg-background border focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-              />
-              <Button className="w-full font-semibold">
-                Inscrever-se Agora
-              </Button>
-            </form>
-          </div>
-
           {/* Categories Cloud */}
           <div>
-            <h3 className="font-bold text-lg mb-4">Explorar Tópicos</h3>
+            <h3 className="text-xl font-black mb-4 uppercase border-b-2 border-black pb-1 inline-block">Explorar Tópicos</h3>
             <div className="flex flex-wrap gap-2">
               {['Teologia', 'Missões', 'Saúde', 'Educação', 'Arqueologia', 'Profecias', 'Vaticano', 'Liberdade Religiosa'].map((tag) => (
                 <Link 
                   key={tag} 
                   href={`/tag/${tag.toLowerCase()}`}
-                  className="px-3 py-1.5 bg-muted hover:bg-primary/10 hover:text-primary rounded-full text-sm font-medium transition-colors"
+                  className="px-3 py-1.5 bg-white border-2 border-black hover:bg-accent hover:shadow-[2px_2px_0_0_black] hover:-translate-y-0.5 text-sm font-bold uppercase transition-all"
                 >
                   {tag}
                 </Link>

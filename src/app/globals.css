@@ -121,6 +121,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: radial-gradient(#1a1a1a 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 }
 

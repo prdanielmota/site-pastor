@@ -26,7 +26,8 @@ const FEEDS = {
   iasd: [
     { url: 'https://adventist.news/rss', source: 'Adventist News Network' },
     { url: 'https://www.adventistreview.org/rss.xml', source: 'Adventist Review' },
-    { url: 'https://spectrummagazine.org/feed', source: 'Spectrum Magazine' }
+    { url: 'https://spectrummagazine.org/feed', source: 'Spectrum Magazine' },
+    { url: 'https://noticias.adventistas.org/pt/feed/', source: 'Notícias Adventistas Brasil' }
   ],
   mundo: [
     { url: 'https://religionnews.com/feed', source: 'Religion News Service' },
@@ -41,7 +42,11 @@ const FEEDS = {
 // Helper to try to extract an image from RSS content
 function extractImage(item: any): string | undefined {
   // 1. Try media:content (often used by ANN and others)
-  if (item.mediaContent && item.mediaContent.$ && item.mediaContent.$.url) {
+  // Check if mediaContent is an array or object
+  if (Array.isArray(item.mediaContent)) {
+    const medium = item.mediaContent.find((m: any) => m.$?.medium === 'image' || m.$?.type?.startsWith('image') || m.$?.url);
+    if (medium && medium.$ && medium.$.url) return medium.$.url;
+  } else if (item.mediaContent && item.mediaContent.$ && item.mediaContent.$.url) {
     return item.mediaContent.$.url;
   }
   
@@ -55,14 +60,23 @@ function extractImage(item: any): string | undefined {
     return item.mediaThumbnail.$.url;
   }
   
-  // 4. Try parsing 'content' or 'content:encoded' for the first <img> tag
-  if (item.content || item['content:encoded']) {
-    const content = item['content:encoded'] || item.content;
-    const match = content.match(/<img[^>]+src="([^">]+)"/);
+  // 4. Try parsing 'content', 'content:encoded' OR 'description' for the first <img> tag
+  const htmlContent = item['content:encoded'] || item.content || item.description || '';
+  if (htmlContent) {
+    const match = htmlContent.match(/<img[^>]+src="([^">]+)"/);
     if (match) return match[1];
   }
 
-  return undefined;
+  // 5. Fallback images based on source
+  if (item.source === 'Adventist News Network') return 'https://adventist.news/images/ann-logo.png';
+  if (item.source === 'Adventist Review') return 'https://www.adventistreview.org/assets/public/favicon.png';
+  if (item.source === 'Spectrum Magazine') return 'https://spectrummagazine.org/sites/default/files/spectrum-logo.png';
+  if (item.source === 'Notícias Adventistas Brasil') return 'https://noticias.adventistas.org/wp-content/themes/adventistas-noticias/assets/images/logo.png';
+  if (item.source === 'Religion News Service') return 'https://religionnews.com/wp-content/uploads/2020/09/RNS_Logo_RGB.png';
+  if (item.source === 'Christianity Today') return 'https://www.christianitytoday.com/images/ct-logo.png';
+  
+  // 6. Generic fallback if everything fails
+  return 'https://images.unsplash.com/photo-1491396023581-4344e51f45dc?q=80&w=1000&auto=format&fit=crop';
 }
 
 export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'): Promise<NewsItem[]> {
