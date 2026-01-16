@@ -54,10 +54,10 @@
   --card-foreground: #1a1a1a;
   --popover: #ffffff;
   --popover-foreground: #1a1a1a;
-  --primary: #FF5E5E;
+  --primary: #FFDE00;
   --primary-foreground: #1a1a1a;
-  --secondary: #A3E635;
-  --secondary-foreground: #1a1a1a;
+  --secondary: #FF5E5E;
+  --secondary-foreground: #ffffff;
   --muted: #e5e5e5;
   --muted-foreground: #525252;
   --accent: #FDE047;
@@ -88,10 +88,10 @@
   --card-foreground: #f0f0f0;
   --popover: #262626;
   --popover-foreground: #f0f0f0;
-  --primary: #FF5E5E;
+  --primary: #FFDE00;
   --primary-foreground: #1a1a1a;
-  --secondary: #A3E635;
-  --secondary-foreground: #1a1a1a;
+  --secondary: #FF5E5E;
+  --secondary-foreground: #ffffff;
   --muted: #404040;
   --muted-foreground: #a3a3a3;
   --accent: #FDE047;
@@ -121,8 +121,8 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-image: radial-gradient(#1a1a1a 1px, transparent 1px);
-    background-size: 24px 24px;
+    background-image: radial-gradient(#000000 1.5px, transparent 1.5px);
+    background-size: 20px 20px;
   }
 }
 

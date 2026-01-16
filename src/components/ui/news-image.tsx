@@ -29,25 +29,31 @@ export function NewsImage({
 
   return (
     <div className={cn("relative w-full h-full overflow-hidden bg-muted flex items-center justify-center", containerClassName)}>
-      {!loaded && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted animate-pulse">
-          <Globe className="w-8 h-8 text-muted-foreground/30" />
-        </div>
-      )}
+      {/* Show placeholder/skeleton until fully loaded */}
+      <div className={cn(
+        "absolute inset-0 flex items-center justify-center bg-muted transition-opacity duration-300",
+        loaded ? "opacity-0" : "opacity-100"
+      )}>
+        <Globe className="w-8 h-8 text-muted-foreground/30 animate-pulse" />
+      </div>
+      
       <img
         src={imageSrc}
         alt={alt}
         className={cn(
-          "w-full h-full object-cover transition-opacity duration-500", 
+          "w-full h-full object-cover transition-opacity duration-300", 
           loaded ? "opacity-100" : "opacity-0",
           className
         )}
         onLoad={() => setLoaded(true)}
         onError={() => {
-          setError(true);
-          setLoaded(true); // Show fallback immediately
+          if (!error) { // Prevent infinite loop if fallback also fails
+            setError(true);
+            // Don't setLoaded(true) here immediately to allow fallback to load
+          }
         }}
-        referrerPolicy="no-referrer" // Helps bypass hotlink protection
+        referrerPolicy="no-referrer"
+        loading="lazy"
         {...props}
       />
     </div>

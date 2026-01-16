@@ -6,8 +6,13 @@ const parser = new Parser({
       ['media:content', 'mediaContent'],
       ['media:thumbnail', 'mediaThumbnail'],
       ['enclosure', 'enclosure'],
+      ['content:encoded', 'contentEncoded'],
     ],
   },
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/rss+xml, application/xml, text/xml; q=0.1',
+  }
 });
 
 export interface NewsItem {
@@ -61,10 +66,18 @@ function extractImage(item: any): string | undefined {
   }
   
   // 4. Try parsing 'content', 'content:encoded' OR 'description' for the first <img> tag
-  const htmlContent = item['content:encoded'] || item.content || item.description || '';
+  const htmlContent = item['contentEncoded'] || item.content || item.description || '';
   if (htmlContent) {
-    const match = htmlContent.match(/<img[^>]+src="([^">]+)"/);
-    if (match) return match[1];
+    // Match standard img src
+    let match = htmlContent.match(/<img[^>]+src="([^">]+)"/);
+    // Also try to match srcset and take the first url if standard match fails
+    if (!match) {
+        match = htmlContent.match(/<img[^>]+srcset="([^"> ]+)/);
+    }
+    if (match && match[1]) {
+        // Ensure it's a valid URL
+        if (match[1].startsWith('http')) return match[1];
+    }
   }
 
   // 5. Fallback images based on source
@@ -79,7 +92,18 @@ function extractImage(item: any): string | undefined {
   return 'https://images.unsplash.com/photo-1491396023581-4344e51f45dc?q=80&w=1000&auto=format&fit=crop';
 }
 
+// Simple in-memory cache to prevent 429 errors during dev
+const cache: Record<string, { data: NewsItem[], timestamp: number }> = {};
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'): Promise<NewsItem[]> {
+  // Check cache first
+  const cacheKey = category;
+  if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_DURATION) {
+    console.log(`Serving ${category} news from cache`);
+    return cache[cacheKey].data;
+  }
+
   let feedsToFetch = [];
   
   if (category === 'all') {
@@ -92,7 +116,67 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
 
   const newsPromises = feedsToFetch.map(async (feedInfo) => {
     try {
-      const feed = await parser.parseURL(feedInfo.url);
+      // Use standard fetch with timeout and headers to bypass simple blockers
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      let response;
+      let usedProxy = false;
+      try {
+        response = await fetch(feedInfo.url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/rss+xml, application/xml, text/xml, */*; q=0.8'
+          },
+          next: { revalidate: 300 }
+        });
+        
+        if (!response.ok && (response.status === 403 || response.status === 429)) {
+           throw new Error('Blocked, trying proxy');
+        }
+      } catch (fetchError) {
+        console.warn(`Direct fetch failed for ${feedInfo.url}, trying proxy...`);
+        // Fallback to AllOrigins proxy
+        usedProxy = true;
+        try {
+          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(feedInfo.url)}`;
+          response = await fetch(proxyUrl, { next: { revalidate: 300 } });
+        } catch (proxyError) {
+           console.error(`Proxy fetch also failed for ${feedInfo.url}`);
+           return [];
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!response || !response.ok) {
+        // Safe check for response existence
+        const status = response ? response.status : 'Unknown';
+        throw new Error(`Status code ${status}`);
+      }
+
+      let xmlText = '';
+      if (usedProxy) {
+        const json = await response.json();
+        xmlText = json.contents;
+      } else {
+        xmlText = await response.text();
+      }
+
+      // Check if we actually got content
+      if (!xmlText || typeof xmlText !== 'string' || xmlText.trim().length === 0) {
+        throw new Error('Empty response from feed');
+      }
+      
+      let feed;
+      try {
+        feed = await parser.parseString(xmlText);
+      } catch (parseError) {
+        console.warn(`Failed to parse RSS from ${feedInfo.url}, content might not be XML`);
+        return [];
+      }
+
       return feed.items.map(item => ({
         title: item.title || 'Sem título',
         link: item.link || '#',
@@ -113,10 +197,17 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
   const results = await Promise.all(newsPromises);
   const allNews = results.flat();
 
-  // Sort by date descending
-  return allNews.sort((a, b) => {
+  const sortedNews = allNews.sort((a, b) => {
     const dateA = a.isoDate ? new Date(a.isoDate).getTime() : 0;
     const dateB = b.isoDate ? new Date(b.isoDate).getTime() : 0;
     return dateB - dateA;
   });
+
+  // Save to cache
+  cache[cacheKey] = {
+    data: sortedNews,
+    timestamp: Date.now()
+  };
+
+  return sortedNews;
 }

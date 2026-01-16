@@ -8,10 +8,6 @@ import { useState } from "react"
 
 const navItems = [
   { name: "Início", href: "/" },
-  { name: "IASD", href: "/categoria/iasd" },
-  { name: "Mundo", href: "/categoria/mundo" },
-  { name: "Religião", href: "/categoria/religiao" },
-  { name: "Profecias", href: "/categoria/profecias" },
 ]
 
 export function Navbar() {

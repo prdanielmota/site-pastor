@@ -20,6 +20,7 @@ const formatDate = (dateStr?: string) => {
 export default async function Home() {
   const iasdNews = await fetchNews('iasd');
   const worldNews = await fetchNews('mundo');
+  const allNews = [...iasdNews, ...worldNews];
   
   // Use the latest news as featured, or fallback
   const featuredNews = iasdNews[0] || worldNews[0];
@@ -28,6 +29,17 @@ export default async function Home() {
   
   // Trending could be a mix
   const trendingNews = [...iasdNews, ...worldNews].sort(() => 0.5 - Math.random()).slice(0, 5);
+
+  // Dynamic tags based on content
+  const potentialTags = ['Teologia', 'Missões', 'Saúde', 'Educação', 'Arqueologia', 'Profecias', 'Vaticano', 'Liberdade Religiosa', 'Família', 'Bíblia', 'Jovens'];
+  const activeTags = potentialTags.filter(tag => {
+    const search = tag.toLowerCase();
+    return allNews.some(item => 
+      item.title.toLowerCase().includes(search) || 
+      item.contentSnippet?.toLowerCase().includes(search) ||
+      item.categories?.some(cat => cat.toLowerCase().includes(search))
+    );
+  });
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -80,9 +92,6 @@ export default async function Home() {
                 </div>
                 Igreja Adventista
               </h2>
-              <Link href="/categoria/iasd" className="text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
-                Ver tudo <ArrowRight className="w-4 h-4" />
-              </Link>
             </div>
             
             <div className="grid gap-8">
@@ -128,9 +137,6 @@ export default async function Home() {
                 </div>
                 Religiões do Mundo
               </h2>
-              <Link href="/categoria/mundo" className="text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
-                Ver tudo <ArrowRight className="w-4 h-4" />
-              </Link>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -184,22 +190,6 @@ export default async function Home() {
               ))}
             </CardContent>
           </Card>
-
-          {/* Categories Cloud */}
-          <div>
-            <h3 className="text-xl font-black mb-4 uppercase border-b-2 border-black pb-1 inline-block">Explorar Tópicos</h3>
-            <div className="flex flex-wrap gap-2">
-              {['Teologia', 'Missões', 'Saúde', 'Educação', 'Arqueologia', 'Profecias', 'Vaticano', 'Liberdade Religiosa'].map((tag) => (
-                <Link 
-                  key={tag} 
-                  href={`/tag/${tag.toLowerCase()}`}
-                  className="px-3 py-1.5 bg-white border-2 border-black hover:bg-accent hover:shadow-[2px_2px_0_0_black] hover:-translate-y-0.5 text-sm font-bold uppercase transition-all"
-                >
-                  {tag}
-                </Link>
-              ))}
-            </div>
-          </div>
         </aside>
       </div>
     </div>

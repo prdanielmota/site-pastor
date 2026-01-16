@@ -30,7 +30,7 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${dmSans.variable} font-sans antialiased min-h-screen flex flex-col bg-background`}
       >
         <Navbar />
-        <main className="flex-1 border-x-4 border-black container mx-auto bg-white shadow-[8px_0_0_0_rgba(0,0,0,0.1)]">
+        <main className="flex-1 border-x-0 md:border-x-4 border-black container max-w-7xl mx-auto bg-white shadow-none md:shadow-[8px_0_0_0_rgba(0,0,0,0.1)]">
           {children}
         </main>
         <Footer />
