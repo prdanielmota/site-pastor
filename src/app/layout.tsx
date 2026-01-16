@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Space_Grotesk, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const dmSans = DM_Sans({
+  variable: "--font-mono", // Using this variable for body text in our setup
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Pastor Daniel Mota",
-  description: "Site oficial do Pastor Daniel Mota - Mensagens, Agenda e Recursos.",
+  title: "Portal Advento News",
+  description: "Notícias dinâmicas sobre a Igreja Adventista e o mundo religioso.",
 };
 
 export default function RootLayout({
@@ -27,10 +27,10 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+        className={`${spaceGrotesk.variable} ${dmSans.variable} font-sans antialiased min-h-screen flex flex-col bg-background`}
       >
         <Navbar />
-        <main className="flex-1">
+        <main className="flex-1 border-x-4 border-black container mx-auto bg-white shadow-[8px_0_0_0_rgba(0,0,0,0.1)]">
           {children}
         </main>
         <Footer />
