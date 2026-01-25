@@ -6,6 +6,6 @@ services:
     container_name: pastor-site
     restart: always
     ports:
-      - "3000:3000"
+      - "49152:49152"
     environment:
       - NODE_ENV=production
