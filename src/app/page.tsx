@@ -17,18 +17,29 @@ const formatDate = (dateStr?: string) => {
   }
 };
 
+// Revalidate the prerendered page every 5 min (ISR) — keeps it cacheable at
+// the edge instead of re-fetching every RSS feed on each request.
+export const revalidate = 300;
+
 export default async function Home() {
-  const iasdNews = await fetchNews('iasd');
-  const worldNews = await fetchNews('mundo');
+  // Fetch both categories in parallel (was sequential — doubled render latency).
+  const [iasdNews, worldNews] = await Promise.all([
+    fetchNews('iasd'),
+    fetchNews('mundo'),
+  ]);
   const allNews = [...iasdNews, ...worldNews];
-  
+
   // Use the latest news as featured, or fallback
   const featuredNews = iasdNews[0] || worldNews[0];
   const remainingIasd = iasdNews.filter(n => n.link !== featuredNews?.link).slice(0, 5);
   const remainingWorld = worldNews.filter(n => n.link !== featuredNews?.link).slice(0, 6);
-  
-  // Trending could be a mix
-  const trendingNews = [...iasdNews, ...worldNews].sort(() => 0.5 - Math.random()).slice(0, 5);
+
+  // "Mais Lidas": deterministic (most recent across both categories), so the
+  // prerendered HTML is stable and cacheable. Was Math.random() which froze a
+  // random order at build time and broke caching.
+  const trendingNews = [...iasdNews, ...worldNews]
+    .filter(n => n.link !== featuredNews?.link)
+    .slice(0, 5);
 
   // Dynamic tags based on content
   const potentialTags = ['Teologia', 'Missões', 'Saúde', 'Educação', 'Arqueologia', 'Profecias', 'Vaticano', 'Liberdade Religiosa', 'Família', 'Bíblia', 'Jovens'];
@@ -60,9 +71,9 @@ export default async function Home() {
                 </p>
                 <div className="flex flex-col gap-3 min-[400px]:flex-row pt-4">
                   <Button asChild size="lg" className="font-semibold w-full sm:w-auto">
-                    <a href={featuredNews.link} target="_blank" rel="noopener noreferrer">
+                    <Link href={`/noticia/${featuredNews.slug}`}>
                       Ler Matéria Completa
-                    </a>
+                    </Link>
                   </Button>
                 </div>
               </div>
@@ -95,8 +106,8 @@ export default async function Home() {
             </div>
             
             <div className="grid gap-8">
-              {remainingIasd.map((item, i) => (
-                <Card key={i} className="group flex flex-col md:flex-row overflow-hidden border-none shadow-none hover:shadow-lg transition-all duration-300 bg-card/50 hover:bg-card">
+              {remainingIasd.map((item) => (
+                <Card key={item.link} className="group flex flex-col md:flex-row overflow-hidden border-none shadow-none hover:shadow-lg transition-all duration-300 bg-card/50 hover:bg-card">
                   <div className="w-full md:w-64 aspect-video md:aspect-auto bg-muted/50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
                     <NewsImage 
                       src={item.imageUrl} 
@@ -112,15 +123,15 @@ export default async function Home() {
                       <span>{formatDate(item.isoDate)}</span>
                     </div>
                     <h3 className="text-xl font-bold mb-3 leading-snug group-hover:text-primary transition-colors">
-                      <a href={item.link} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      <Link href={`/noticia/${item.slug}`} className="hover:underline">
                         {item.title}
-                      </a>
+                      </Link>
                     </h3>
                     <p className="text-muted-foreground line-clamp-2 mb-4">
                       {item.contentSnippet}
                     </p>
                     <div className="mt-auto">
-                      <a href={item.link} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary group-hover:underline">Ler mais</a>
+                      <Link href={`/noticia/${item.slug}`} className="text-sm font-semibold text-primary group-hover:underline">Ler mais</Link>
                     </div>
                   </div>
                 </Card>
@@ -140,8 +151,8 @@ export default async function Home() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {remainingWorld.map((item, i) => (
-                <Card key={i} className="group hover:shadow-lg transition-all duration-300 border-none bg-card/50 hover:bg-card">
+              {remainingWorld.map((item) => (
+                <Card key={item.link} className="group hover:shadow-lg transition-all duration-300 border-none bg-card/50 hover:bg-card">
                   <div className="aspect-[1.6/1] bg-muted/50 rounded-t-xl flex items-center justify-center overflow-hidden">
                      <NewsImage 
                         src={item.imageUrl} 
@@ -156,9 +167,9 @@ export default async function Home() {
                       <span>{formatDate(item.isoDate)}</span>
                     </div>
                     <h3 className="text-lg font-bold mb-2 leading-tight group-hover:text-primary transition-colors">
-                      <a href={item.link} target="_blank" rel="noopener noreferrer">
+                      <Link href={`/noticia/${item.slug}`}>
                         {item.title}
-                      </a>
+                      </Link>
                     </h3>
                   </CardContent>
                 </Card>
@@ -178,12 +189,12 @@ export default async function Home() {
             </CardHeader>
             <CardContent className="pt-6 grid gap-6">
               {trendingNews.map((item, i) => (
-                <div key={i} className="flex gap-4 items-start group">
+                <div key={item.link} className="flex gap-4 items-start group">
                   <span className="text-2xl font-bold text-muted-foreground/30 group-hover:text-primary transition-colors">0{i + 1}</span>
                   <div>
-                    <a href={item.link} target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-primary transition-colors line-clamp-2">
+                    <Link href={`/noticia/${item.slug}`} className="font-semibold hover:text-primary transition-colors line-clamp-2">
                       {item.title}
-                    </a>
+                    </Link>
                     <span className="text-xs text-muted-foreground mt-1 block">{item.source}</span>
                   </div>
                 </div>

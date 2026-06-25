@@ -5,18 +5,49 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 
 const spaceGrotesk = Space_Grotesk({
-  variable: "--font-sans",
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
 const dmSans = DM_Sans({
-  variable: "--font-mono", // Using this variable for body text in our setup
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Daniel Mota | Portal Advento News",
-  description: "Notícias dinâmicas sobre a Igreja Adventista e o mundo religioso.",
+  metadataBase: new URL("https://danielmota.org"),
+  title: {
+    default: "Portal Advento News | Daniel Mota",
+    template: "%s | Portal Advento News",
+  },
+  description:
+    "Notícias atualizadas sobre a Igreja Adventista do Sétimo Dia e o mundo religioso — agregadas de fontes oficiais.",
+  keywords: [
+    "Igreja Adventista",
+    "notícias adventistas",
+    "IASD",
+    "Adventist News",
+    "religião",
+    "Portal Advento News",
+  ],
+  authors: [{ name: "Daniel Mota" }],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "https://danielmota.org",
+    siteName: "Portal Advento News",
+    title: "Portal Advento News",
+    description:
+      "Notícias atualizadas sobre a Igreja Adventista do Sétimo Dia e o mundo religioso.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Portal Advento News",
+    description:
+      "Notícias atualizadas sobre a Igreja Adventista do Sétimo Dia e o mundo religioso.",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({

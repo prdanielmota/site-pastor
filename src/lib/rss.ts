@@ -25,6 +25,21 @@ export interface NewsItem {
   source: string;
   isoDate?: string;
   imageUrl?: string;
+  slug: string;
+}
+
+// URL-safe slug from a title (accent-insensitive). Used for internal
+// /noticia/[slug] routes.
+export function slugify(title: string): string {
+  return (
+    title
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80) || 'noticia'
+  );
 }
 
 const FEEDS = {
@@ -45,7 +60,7 @@ const FEEDS = {
 };
 
 // Helper to try to extract an image from RSS content
-function extractImage(item: any): string | undefined {
+function extractImage(item: any, source: string): string | undefined {
   // 1. Try media:content (often used by ANN and others)
   // Check if mediaContent is an array or object
   if (Array.isArray(item.mediaContent)) {
@@ -81,12 +96,12 @@ function extractImage(item: any): string | undefined {
   }
 
   // 5. Fallback images based on source
-  if (item.source === 'Adventist News Network') return 'https://adventist.news/images/ann-logo.png';
-  if (item.source === 'Adventist Review') return 'https://www.adventistreview.org/assets/public/favicon.png';
-  if (item.source === 'Spectrum Magazine') return 'https://spectrummagazine.org/sites/default/files/spectrum-logo.png';
-  if (item.source === 'Notícias Adventistas Brasil') return 'https://noticias.adventistas.org/wp-content/themes/adventistas-noticias/assets/images/logo.png';
-  if (item.source === 'Religion News Service') return 'https://religionnews.com/wp-content/uploads/2020/09/RNS_Logo_RGB.png';
-  if (item.source === 'Christianity Today') return 'https://www.christianitytoday.com/images/ct-logo.png';
+  if (source === 'Adventist News Network') return 'https://adventist.news/images/ann-logo.png';
+  if (source === 'Adventist Review') return 'https://www.adventistreview.org/assets/public/favicon.png';
+  if (source === 'Spectrum Magazine') return 'https://spectrummagazine.org/sites/default/files/spectrum-logo.png';
+  if (source === 'Notícias Adventistas Brasil') return 'https://noticias.adventistas.org/wp-content/themes/adventistas-noticias/assets/images/logo.png';
+  if (source === 'Religion News Service') return 'https://religionnews.com/wp-content/uploads/2020/09/RNS_Logo_RGB.png';
+  if (source === 'Christianity Today') return 'https://www.christianitytoday.com/images/ct-logo.png';
   
   // 6. Generic fallback if everything fails
   return 'https://images.unsplash.com/photo-1491396023581-4344e51f45dc?q=80&w=1000&auto=format&fit=crop';
@@ -132,19 +147,25 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
           next: { revalidate: 300 }
         });
         
-        if (!response.ok && (response.status === 403 || response.status === 429)) {
-           throw new Error('Blocked, trying proxy');
+        // Retry via proxy on blocks (403/429) and origin/gateway errors (5xx, e.g. 500/522)
+        if (!response.ok && (response.status === 403 || response.status === 429 || response.status >= 500)) {
+           throw new Error(`Blocked/upstream error ${response.status}, trying proxy`);
         }
       } catch (fetchError) {
         console.warn(`Direct fetch failed for ${feedInfo.url}, trying proxy...`);
-        // Fallback to AllOrigins proxy
+        // Fallback to AllOrigins proxy — with its own timeout (the original
+        // controller is already aborted/cleared, so the proxy needs its own).
         usedProxy = true;
+        const proxyController = new AbortController();
+        const proxyTimeoutId = setTimeout(() => proxyController.abort(), 15000); // 15s
         try {
           const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(feedInfo.url)}`;
-          response = await fetch(proxyUrl, { next: { revalidate: 300 } });
+          response = await fetch(proxyUrl, { signal: proxyController.signal, next: { revalidate: 300 } });
         } catch (proxyError) {
            console.error(`Proxy fetch also failed for ${feedInfo.url}`);
            return [];
+        } finally {
+          clearTimeout(proxyTimeoutId);
         }
       } finally {
         clearTimeout(timeoutId);
@@ -177,17 +198,22 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
         return [];
       }
 
-      return feed.items.map(item => ({
-        title: item.title || 'Sem título',
-        link: item.link || '#',
-        pubDate: item.pubDate || '',
-        isoDate: item.isoDate,
-        contentSnippet: item.contentSnippet || '',
-        content: item.content,
-        categories: item.categories,
-        source: feedInfo.source,
-        imageUrl: extractImage(item)
-      }));
+      return feed.items.map(item => {
+        const title = item.title || 'Sem título';
+        return {
+          title,
+          link: item.link || '#',
+          pubDate: item.pubDate || '',
+          isoDate: item.isoDate,
+          contentSnippet: item.contentSnippet || '',
+          // Prefer full content:encoded for the article body, fall back to content.
+          content: (item as { contentEncoded?: string }).contentEncoded || item.content,
+          categories: item.categories,
+          source: feedInfo.source,
+          imageUrl: extractImage(item, feedInfo.source),
+          slug: slugify(title),
+        } satisfies NewsItem;
+      });
     } catch (error) {
       console.error(`Error fetching feed ${feedInfo.url}:`, error);
       return [];
@@ -197,11 +223,12 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
   const results = await Promise.all(newsPromises);
   const allNews = results.flat();
 
-  const sortedNews = allNews.sort((a, b) => {
-    const dateA = a.isoDate ? new Date(a.isoDate).getTime() : 0;
-    const dateB = b.isoDate ? new Date(b.isoDate).getTime() : 0;
-    return dateB - dateA;
-  });
+  const toTime = (iso?: string) => {
+    if (!iso) return 0;
+    const t = new Date(iso).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const sortedNews = allNews.sort((a, b) => toTime(b.isoDate) - toTime(a.isoDate));
 
   // Save to cache
   cache[cacheKey] = {
@@ -210,4 +237,10 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
   };
 
   return sortedNews;
+}
+
+// Find a single article by its slug across all feeds. Returns null if not found.
+export async function getArticleBySlug(slug: string): Promise<NewsItem | null> {
+  const all = await fetchNews('all');
+  return all.find(item => item.slug === slug) ?? null;
 }

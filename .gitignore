@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# launchd service logs (local prod server)
+.launchd.out.log
+.launchd.err.log
