@@ -53,10 +53,8 @@ const FEEDS = {
     { url: 'https://religionnews.com/feed', source: 'Religion News Service' },
     { url: 'https://www.christianitytoday.com/feed', source: 'Christianity Today' }
   ],
-  profecias: [
-    // Fallback to searching in other feeds or specific prophecy blogs if found
-    { url: 'https://www.signstimes.com/?rss=true', source: 'Signs of the Times' }
-  ]
+  // Signs of the Times returns HTML instead of RSS, so it is no longer listed.
+  profecias: [] as { url: string; source: string }[]
 };
 
 // Helper to try to extract an image from RSS content
@@ -100,98 +98,53 @@ function extractImage(item: any): string | undefined {
   return undefined;
 }
 
-// Simple in-memory cache to prevent 429 errors during dev
-const cache: Record<string, { data: NewsItem[], timestamp: number }> = {};
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// Per-feed cache that never expires: last-good items are kept for the lifetime
+// of the process, so a temporarily unreachable feed does not blank the page.
+type FeedEntry = { items: NewsItem[]; fetchedAt: number; failedAt?: number };
+const FRESH_MS = 5 * 60 * 1000;      // dentro disso, não refaz fetch
+const RETRY_BACKOFF_MS = 2 * 60 * 1000; // após falha, não tenta de novo antes disso
+const FEED_TIMEOUT_MS = 6000;
+const feedCache = new Map<string, FeedEntry>();      // chave = feed.url
+const inflight = new Map<string, Promise<NewsItem[]>>(); // dedupe de requisições
 
-export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'): Promise<NewsItem[]> {
-  // Check cache first
-  const cacheKey = category;
-  if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_DURATION) {
-    console.log(`Serving ${category} news from cache`);
-    return cache[cacheKey].data;
+async function fetchFeed(feed: { url: string; source: string }): Promise<NewsItem[]> {
+  const cached = feedCache.get(feed.url);
+  if (cached && Date.now() - cached.fetchedAt < FRESH_MS) {
+    return cached.items;
+  }
+  if (cached?.failedAt && Date.now() - cached.failedAt < RETRY_BACKOFF_MS && cached.items) {
+    return cached.items;
+  }
+  const pending = inflight.get(feed.url);
+  if (pending) {
+    return pending;
   }
 
-  let feedsToFetch = [];
-  
-  if (category === 'all') {
-    feedsToFetch = [...FEEDS.iasd, ...FEEDS.mundo, ...FEEDS.profecias];
-  } else if (FEEDS[category]) {
-    feedsToFetch = FEEDS[category];
-  } else {
-    return [];
-  }
-
-  const newsPromises = feedsToFetch.map(async (feedInfo) => {
+  const promise = (async (): Promise<NewsItem[]> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
     try {
-      // Use standard fetch with timeout and headers to bypass simple blockers
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-      
-      let response;
-      let usedProxy = false;
-      try {
-        response = await fetch(feedInfo.url, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/rss+xml, application/xml, text/xml, */*; q=0.8'
-          },
-          next: { revalidate: 300 }
-        });
-        
-        // Retry via proxy on blocks (403/429) and origin/gateway errors (5xx, e.g. 500/522)
-        if (!response.ok && (response.status === 403 || response.status === 429 || response.status >= 500)) {
-           throw new Error(`Blocked/upstream error ${response.status}, trying proxy`);
-        }
-      } catch (fetchError) {
-        console.warn(`Direct fetch failed for ${feedInfo.url}, trying proxy...`);
-        // Fallback to AllOrigins proxy — with its own timeout (the original
-        // controller is already aborted/cleared, so the proxy needs its own).
-        usedProxy = true;
-        const proxyController = new AbortController();
-        const proxyTimeoutId = setTimeout(() => proxyController.abort(), 15000); // 15s
-        try {
-          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(feedInfo.url)}`;
-          response = await fetch(proxyUrl, { signal: proxyController.signal, next: { revalidate: 300 } });
-        } catch (proxyError) {
-           console.error(`Proxy fetch also failed for ${feedInfo.url}`);
-           return [];
-        } finally {
-          clearTimeout(proxyTimeoutId);
-        }
-      } finally {
-        clearTimeout(timeoutId);
+      const res = await fetch(feed.url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/rss+xml, application/xml, text/xml, */*; q=0.8'
+        },
+        next: { revalidate: 300 }
+      });
+
+      if (!res.ok) {
+        throw new Error(`Status code ${res.status}`);
       }
 
-      if (!response || !response.ok) {
-        // Safe check for response existence
-        const status = response ? response.status : 'Unknown';
-        throw new Error(`Status code ${status}`);
+      const text = await res.text();
+      // Some feeds answer with an HTML error page; require an actual feed root.
+      if (!text || !/<(rss|feed|rdf:RDF)\b/i.test(text.slice(0, 2000))) {
+        throw new Error('Response is not RSS/Atom');
       }
 
-      let xmlText = '';
-      if (usedProxy) {
-        const json = await response.json();
-        xmlText = json.contents;
-      } else {
-        xmlText = await response.text();
-      }
-
-      // Check if we actually got content
-      if (!xmlText || typeof xmlText !== 'string' || xmlText.trim().length === 0) {
-        throw new Error('Empty response from feed');
-      }
-      
-      let feed;
-      try {
-        feed = await parser.parseString(xmlText);
-      } catch (parseError) {
-        console.warn(`Failed to parse RSS from ${feedInfo.url}, content might not be XML`);
-        return [];
-      }
-
-      return feed.items.map(item => {
+      const parsed = await parser.parseString(text);
+      const items = parsed.items.map(item => {
         const title = item.title || 'Sem título';
         return {
           title,
@@ -202,34 +155,65 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
           // Prefer full content:encoded for the article body, fall back to content.
           content: (item as { contentEncoded?: string }).contentEncoded || item.content,
           categories: item.categories,
-          source: feedInfo.source,
+          source: feed.source,
           imageUrl: extractImage(item),
           slug: slugify(title),
         } satisfies NewsItem;
       });
-    } catch (error) {
-      console.error(`Error fetching feed ${feedInfo.url}:`, error);
-      return [];
-    }
-  });
 
-  const results = await Promise.all(newsPromises);
-  const allNews = results.flat();
+      feedCache.set(feed.url, { items, fetchedAt: Date.now() });
+      return items;
+    } catch (error) {
+      const entry = feedCache.get(feed.url);
+      console.warn(`Feed ${feed.url} failed: ${(error as Error).message}`);
+      if (entry) {
+        feedCache.set(feed.url, { ...entry, failedAt: Date.now() });
+        return entry.items;
+      }
+      return [];
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  })();
+
+  inflight.set(feed.url, promise);
+  try {
+    return await promise;
+  } finally {
+    inflight.delete(feed.url);
+  }
+}
+
+export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'): Promise<NewsItem[]> {
+  let feedsToFetch: { url: string; source: string }[] = [];
+
+  if (category === 'all') {
+    feedsToFetch = [...FEEDS.iasd, ...FEEDS.mundo, ...FEEDS.profecias];
+  } else if (FEEDS[category]) {
+    feedsToFetch = FEEDS[category];
+  } else {
+    return [];
+  }
+
+  const results = await Promise.allSettled(feedsToFetch.map(fetchFeed));
+  const allNews = results
+    .filter((r): r is PromiseFulfilledResult<NewsItem[]> => r.status === 'fulfilled')
+    .flatMap(r => r.value);
 
   const toTime = (iso?: string) => {
     if (!iso) return 0;
     const t = new Date(iso).getTime();
     return Number.isNaN(t) ? 0 : t;
   };
-  const sortedNews = allNews.sort((a, b) => toTime(b.isoDate) - toTime(a.isoDate));
 
-  // Save to cache
-  cache[cacheKey] = {
-    data: sortedNews,
-    timestamp: Date.now()
-  };
+  const seen = new Set<string>();
+  const deduped = allNews.filter((it) => {
+    if (seen.has(it.link)) return false;
+    seen.add(it.link);
+    return true;
+  });
 
-  return sortedNews;
+  return deduped.sort((a, b) => toTime(b.isoDate) - toTime(a.isoDate));
 }
 
 // Find a single article by its slug across all feeds. Returns null if not found.

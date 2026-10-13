@@ -12,6 +12,10 @@ export const metadata: Metadata = {
 
 export default async function NoticiasPage() {
   const news = await fetchNews("all");
+  const items = news.map(({ title, link, slug, source, isoDate, pubDate, contentSnippet }) => ({
+    title, link, slug, source, isoDate, pubDate,
+    contentSnippet: contentSnippet?.slice(0, 240),
+  }));
 
   return (
     <div className="container px-4 md:px-6 py-12">
@@ -24,7 +28,7 @@ export default async function NoticiasPage() {
         </p>
       </div>
 
-      <NewsSearchList items={news} />
+      <NewsSearchList items={items} />
     </div>
   );
 }

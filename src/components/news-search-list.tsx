@@ -10,6 +10,8 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { NewsItem } from "@/lib/rss";
 
+export type NewsListItem = Pick<NewsItem, "title" | "link" | "slug" | "source" | "isoDate" | "pubDate" | "contentSnippet">;
+
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return "";
   try {
@@ -19,7 +21,7 @@ const formatDate = (dateStr?: string) => {
   }
 };
 
-export function NewsSearchList({ items }: { items: NewsItem[] }) {
+export function NewsSearchList({ items }: { items: NewsListItem[] }) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
