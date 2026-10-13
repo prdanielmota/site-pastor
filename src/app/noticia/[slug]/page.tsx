@@ -21,19 +21,40 @@ const formatDate = (dateStr?: string) => {
   }
 };
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// The hero image is rendered from article.imageUrl, and the body HTML often
+// repeats the same <img> (extractImage in rss.ts pulls it from this content).
+// Drop that duplicate plus any wrapper left empty.
+const stripDuplicateHeroImage = (html: string, imageUrl?: string) => {
+  if (!imageUrl) return html;
+  const src = escapeRegExp(imageUrl);
+  const imgTag = new RegExp(
+    `<img\\b[^>]*\\bsrc\\s*=\\s*(?:"${src}"|'${src}')[^>]*>`,
+    "gi",
+  );
+  return html
+    .replace(imgTag, "")
+    .replace(/<p>\s*<\/p>/gi, "")
+    .replace(/<figure>\s*<\/figure>/gi, "");
+};
+
 // Allow common article markup, strip scripts/handlers (XSS-safe).
-const cleanHtml = (html?: string) =>
-  sanitizeHtml(html || "", {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "figure", "figcaption", "h1", "h2"]),
-    allowedAttributes: {
-      a: ["href", "title", "target", "rel"],
-      img: ["src", "alt", "title"],
-    },
-    allowedSchemes: ["http", "https", "mailto"],
-    transformTags: {
-      a: sanitizeHtml.simpleTransform("a", { target: "_blank", rel: "noopener noreferrer" }),
-    },
-  });
+const cleanHtml = (html?: string, imageUrl?: string) =>
+  stripDuplicateHeroImage(
+    sanitizeHtml(html || "", {
+      allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "figure", "figcaption", "h1", "h2"]),
+      allowedAttributes: {
+        a: ["href", "title", "target", "rel"],
+        img: ["src", "alt", "title"],
+      },
+      allowedSchemes: ["http", "https", "mailto"],
+      transformTags: {
+        a: sanitizeHtml.simpleTransform("a", { target: "_blank", rel: "noopener noreferrer" }),
+      },
+    }),
+    imageUrl,
+  );
 
 export async function generateMetadata({
   params,
@@ -60,7 +81,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   const article = await getArticleBySlug(slug);
   if (!article) notFound();
 
-  const safeContent = cleanHtml(article.content);
+  const safeContent = cleanHtml(article.content, article.imageUrl);
 
   // "Leia Também": recent items from the same source, excluding this one.
   const all = await fetchNews("all");
