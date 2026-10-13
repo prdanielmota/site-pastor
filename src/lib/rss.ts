@@ -60,7 +60,7 @@ const FEEDS = {
 };
 
 // Helper to try to extract an image from RSS content
-function extractImage(item: any, source: string): string | undefined {
+function extractImage(item: any): string | undefined {
   // 1. Try media:content (often used by ANN and others)
   // Check if mediaContent is an array or object
   if (Array.isArray(item.mediaContent)) {
@@ -95,16 +95,9 @@ function extractImage(item: any, source: string): string | undefined {
     }
   }
 
-  // 5. Fallback images based on source
-  if (source === 'Adventist News Network') return 'https://adventist.news/images/ann-logo.png';
-  if (source === 'Adventist Review') return 'https://www.adventistreview.org/assets/public/favicon.png';
-  if (source === 'Spectrum Magazine') return 'https://spectrummagazine.org/sites/default/files/spectrum-logo.png';
-  if (source === 'Notícias Adventistas Brasil') return 'https://noticias.adventistas.org/wp-content/themes/adventistas-noticias/assets/images/logo.png';
-  if (source === 'Religion News Service') return 'https://religionnews.com/wp-content/uploads/2020/09/RNS_Logo_RGB.png';
-  if (source === 'Christianity Today') return 'https://www.christianitytoday.com/images/ct-logo.png';
-  
-  // 6. Generic fallback if everything fails
-  return 'https://images.unsplash.com/photo-1491396023581-4344e51f45dc?q=80&w=1000&auto=format&fit=crop';
+  // No real image found in the feed content. NewsImage renders its own
+  // placeholder when imageUrl is undefined, so return undefined here.
+  return undefined;
 }
 
 // Simple in-memory cache to prevent 429 errors during dev
@@ -210,7 +203,7 @@ export async function fetchNews(category: 'iasd' | 'mundo' | 'profecias' | 'all'
           content: (item as { contentEncoded?: string }).contentEncoded || item.content,
           categories: item.categories,
           source: feedInfo.source,
-          imageUrl: extractImage(item, feedInfo.source),
+          imageUrl: extractImage(item),
           slug: slugify(title),
         } satisfies NewsItem;
       });
