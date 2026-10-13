@@ -107,6 +107,35 @@ const FEED_TIMEOUT_MS = 6000;
 const feedCache = new Map<string, FeedEntry>();      // chave = feed.url
 const inflight = new Map<string, Promise<NewsItem[]>>(); // dedupe de requisições
 
+const OG_TIMEOUT_MS = 4000;
+const ogImageCache = new Map<string, string | null>(); // chave = link do artigo; null = já tentou e não achou
+
+async function fetchOgImage(link: string): Promise<string | undefined> {
+  if (ogImageCache.has(link)) return ogImageCache.get(link) ?? undefined;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OG_TIMEOUT_MS);
+  try {
+    const res = await fetch(link, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'text/html' },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) throw new Error(`Status ${res.status}`);
+    const html = (await res.text()).slice(0, 100_000);
+    const m =
+      html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    const url = m?.[1];
+    ogImageCache.set(link, url ?? null);
+    return url;
+  } catch {
+    ogImageCache.set(link, null);
+    return undefined;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function fetchFeed(feed: { url: string; source: string }): Promise<NewsItem[]> {
   const cached = feedCache.get(feed.url);
   if (cached && Date.now() - cached.fetchedAt < FRESH_MS) {
@@ -160,6 +189,12 @@ async function fetchFeed(feed: { url: string; source: string }): Promise<NewsIte
           slug: slugify(title),
         } satisfies NewsItem;
       });
+
+      await Promise.allSettled(
+        items.filter(it => !it.imageUrl && it.link).map(async it => {
+          it.imageUrl = await fetchOgImage(it.link);
+        })
+      );
 
       feedCache.set(feed.url, { items, fetchedAt: Date.now() });
       return items;
